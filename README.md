@@ -8,7 +8,7 @@
 
 ## Демонстрация
 - **Видео**: [Ссылка на видео]
-- **Деплой**: https://your-username.github.io/game-2048/
+- **Деплой**: https://epozh.github.io/webproga_3/
 
 ## Функционал
 
