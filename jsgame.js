@@ -327,3 +327,195 @@ Game.isGameOverCheck = function() {
     
     return true;
 };
+
+// ===== МОДАЛЬНЫЕ ОКНА =====
+Game.showGameOver = function() {
+    var modal = document.getElementById('game-over-modal');
+    var finalScore = document.getElementById('final-score');
+    var nameInputSection = document.getElementById('name-input-section');
+    var successMessage = document.getElementById('save-success');
+    var mobileControls = document.getElementById('mobile-controls');
+    
+    finalScore.textContent = this.score;
+    
+    // Показываем/скрываем ввод имени в зависимости от попадания в топ-10
+    if (Leaderboard.isHighScore(this.score)) {
+        nameInputSection.classList.remove('hidden');
+        successMessage.classList.add('hidden');
+        document.getElementById('player-name').value = '';
+    } else {
+        nameInputSection.classList.add('hidden');
+        successMessage.classList.remove('hidden');
+        successMessage.textContent = 'К сожалению, вы не попали в топ-10';
+    }
+    
+    // Скрываем мобильное управление
+    if (mobileControls) {
+        mobileControls.style.display = 'none';
+    }
+    
+    modal.classList.remove('hidden');
+};
+
+Game.hideGameOver = function() {
+    document.getElementById('game-over-modal').classList.add('hidden');
+    var mobileControls = document.getElementById('mobile-controls');
+    if (mobileControls && window.innerWidth <= 520) {
+        mobileControls.style.display = 'flex';
+    }
+};
+
+Game.showLeaderboard = function() {
+    Leaderboard.render();
+    document.getElementById('leaderboard-modal').classList.remove('hidden');
+    
+    var mobileControls = document.getElementById('mobile-controls');
+    if (mobileControls) {
+        mobileControls.style.display = 'none';
+    }
+};
+
+Game.hideLeaderboard = function() {
+    document.getElementById('leaderboard-modal').classList.add('hidden');
+    
+    var mobileControls = document.getElementById('mobile-controls');
+    if (mobileControls && window.innerWidth <= 520 && !this.isGameOver) {
+        mobileControls.style.display = 'flex';
+    }
+};
+
+// ===== СОХРАНЕНИЕ РЕКОРДА =====
+Game.saveScore = function() {
+    var nameInput = document.getElementById('player-name');
+    var name = nameInput.value.trim();
+    
+    if (!name) {
+        name = 'Аноним';
+    }
+    
+    Leaderboard.addEntry(name, this.score);
+    
+    var nameInputSection = document.getElementById('name-input-section');
+    var successMessage = document.getElementById('save-success');
+    
+    nameInputSection.classList.add('hidden');
+    successMessage.classList.remove('hidden');
+    successMessage.textContent = 'Ваш рекорд сохранён!';
+};
+
+// ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
+Game.setupEventListeners = function() {
+    var self = this;
+    
+    // Клавиатура
+    document.addEventListener('keydown', function(e) {
+        if (self.isGameOver) return;
+        
+        switch(e.key) {
+            case 'ArrowUp':
+                e.preventDefault();
+                self.move('up');
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                self.move('down');
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                self.move('left');
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                self.move('right');
+                break;
+        }
+    });
+    
+    // Кнопки управления
+    document.getElementById('new-game').addEventListener('click', function() {
+        self.startNewGame();
+    });
+    
+    document.getElementById('undo').addEventListener('click', function() {
+        self.undo();
+    });
+    
+    document.getElementById('show-leaderboard').addEventListener('click', function() {
+        self.showLeaderboard();
+    });
+    
+    document.getElementById('close-leaderboard').addEventListener('click', function() {
+        self.hideLeaderboard();
+    });
+    
+    document.getElementById('save-score').addEventListener('click', function() {
+        self.saveScore();
+    });
+    
+    document.getElementById('restart-game').addEventListener('click', function() {
+        self.hideGameOver();
+        self.startNewGame();
+    });
+    
+    // Мобильные кнопки
+    var arrowButtons = document.querySelectorAll('.arrow-btn');
+    arrowButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            if (self.isGameOver) return;
+            var dir = this.getAttribute('data-dir');
+            self.move(dir);
+        });
+    });
+    
+    // Свайпы для мобильных
+    var gameContainer = document.querySelector('.game-container');
+    
+    gameContainer.addEventListener('touchstart', function(e) {
+        self.touchStartX = e.touches[0].clientX;
+        self.touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    
+    gameContainer.addEventListener('touchend', function(e) {
+        if (self.isGameOver) return;
+        
+        var touchEndX = e.changedTouches[0].clientX;
+        var touchEndY = e.changedTouches[0].clientY;
+        
+        var dx = touchEndX - self.touchStartX;
+        var dy = touchEndY - self.touchStartY;
+        
+        var minSwipe = 50;
+        
+        if (Math.abs(dx) > Math.abs(dy)) {
+            if (Math.abs(dx) > minSwipe) {
+                if (dx > 0) {
+                    self.move('right');
+                } else {
+                    self.move('left');
+                }
+            }
+        } else {
+            if (Math.abs(dy) > minSwipe) {
+                if (dy > 0) {
+                    self.move('down');
+                } else {
+                    self.move('up');
+                }
+            }
+        }
+    }, { passive: true });
+    
+    // Закрытие модалок по клику вне контента
+    window.addEventListener('click', function(e) {
+        var gameOverModal = document.getElementById('game-over-modal');
+        var leaderboardModal = document.getElementById('leaderboard-modal');
+        
+        if (e.target === gameOverModal) {
+            // Не закрываем game over модалку при клике вне
+        }
+        
+        if (e.target === leaderboardModal) {
+            self.hideLeaderboard();
+        }
+    });
+};
