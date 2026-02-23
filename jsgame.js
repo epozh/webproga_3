@@ -159,3 +159,171 @@ Game.updateScore = function(newScore) {
     
     document.getElementById('best').textContent = this.bestScore;
 };
+
+// ===== СОХРАНЕНИЕ/ВОССТАНОВЛЕНИЕ СОСТОЯНИЯ =====
+Game.saveState = function() {
+    var state = {
+        grid: JSON.parse(JSON.stringify(this.grid)),
+        score: this.score,
+        isGameOver: this.isGameOver
+    };
+    Storage.saveGameState(state);
+};
+
+Game.restoreState = function(savedState) {
+    this.grid = savedState.grid;
+    this.score = savedState.score;
+    this.isGameOver = savedState.isGameOver;
+    this.bestScore = Storage.loadBestScore();
+    
+    this.updateScore(this.score);
+    this.createGrid();
+    this.updateDisplay();
+    
+    if (this.isGameOver) {
+        this.showGameOver();
+    }
+};
+
+// ===== ОТМЕНА ХОДА =====
+Game.undo = function() {
+    if (this.isGameOver || !this.previousState) {
+        return;
+    }
+    
+    this.grid = JSON.parse(JSON.stringify(this.previousState.grid));
+    this.updateScore(this.previousState.score);
+    this.updateDisplay();
+    this.saveState();
+};
+
+// ===== СОХРАНЕНИЕ ДЛЯ ОТМЕНЫ =====
+Game.saveForUndo = function() {
+    this.previousState = {
+        grid: JSON.parse(JSON.stringify(this.grid)),
+        score: this.score
+    };
+};
+
+// ===== ДВИЖЕНИЕ =====
+Game.move = function(direction) {
+    if (this.isGameOver) return;
+    
+    this.saveForUndo();
+    this.hasMoved = false;
+    var scoreAdd = 0;
+    
+    // Создаём копию сетки для проверки изменений
+    var previousGrid = JSON.parse(JSON.stringify(this.grid));
+    
+    if (direction === 'left' || direction === 'right') {
+        for (var i = 0; i < GRID_SIZE; i++) {
+            var row = this.grid[i].slice();
+            if (direction === 'right') row.reverse();
+            
+            var result = this.processLine(row);
+            var newRow = result.line;
+            scoreAdd += result.score;
+            
+            if (direction === 'right') newRow.reverse();
+            this.grid[i] = newRow;
+        }
+    } else {
+        for (var j = 0; j < GRID_SIZE; j++) {
+            var col = [];
+            for (var i = 0; i < GRID_SIZE; i++) {
+                col.push(this.grid[i][j]);
+            }
+            
+            if (direction === 'down') col.reverse();
+            
+            var result = this.processLine(col);
+            var newCol = result.line;
+            scoreAdd += result.score;
+            
+            if (direction === 'down') newCol.reverse();
+            
+            for (var i = 0; i < GRID_SIZE; i++) {
+                this.grid[i][j] = newCol[i];
+            }
+        }
+    }
+    
+    // Проверяем, изменилась ли сетка
+    for (var i = 0; i < GRID_SIZE; i++) {
+        for (var j = 0; j < GRID_SIZE; j++) {
+            if (this.grid[i][j] !== previousGrid[i][j]) {
+                this.hasMoved = true;
+                break;
+            }
+        }
+        if (this.hasMoved) break;
+    }
+    
+    if (this.hasMoved) {
+        this.updateScore(this.score + scoreAdd);
+        this.addRandomTile();
+        this.updateDisplay();
+        this.saveState();
+        
+        if (this.isGameOverCheck()) {
+            this.isGameOver = true;
+            this.saveState();
+            setTimeout(function() {
+                Game.showGameOver();
+            }, 300);
+        }
+    }
+};
+
+// ===== ОБРАБОТКА ЛИНИИ (ряда/колонки) =====
+Game.processLine = function(line) {
+    // Удаляем нули
+    var filtered = line.filter(function(x) { return x !== 0; });
+    var score = 0;
+    
+    // Сливаем плитки
+    for (var i = 0; i < filtered.length - 1; i++) {
+        if (filtered[i] === filtered[i + 1]) {
+            filtered[i] *= 2;
+            score += filtered[i];
+            filtered[i + 1] = 0;
+        }
+    }
+    
+    // Удаляем нули после слияния
+    filtered = filtered.filter(function(x) { return x !== 0; });
+    
+    // Добавляем нули в конец
+    while (filtered.length < GRID_SIZE) {
+        filtered.push(0);
+    }
+    
+    return { line: filtered, score: score };
+};
+
+// ===== ПРОВЕРКА ОКОНЧАНИЯ ИГРЫ =====
+Game.isGameOverCheck = function() {
+    // Проверяем наличие пустых клеток
+    for (var i = 0; i < GRID_SIZE; i++) {
+        for (var j = 0; j < GRID_SIZE; j++) {
+            if (this.grid[i][j] === 0) return false;
+        }
+    }
+    
+    // Проверяем возможность слияния по горизонтали
+    for (var i = 0; i < GRID_SIZE; i++) {
+        for (var j = 0; j < GRID_SIZE - 1; j++) {
+            if (this.grid[i][j] === this.grid[i][j + 1]) return false;
+        }
+    }
+    
+    // Проверяем возможность слияния по вертикали
+    for (var i = 0; i < GRID_SIZE - 1; i++) {
+        for (var j = 0; j < GRID_SIZE; j++) {
+            if (this.grid[i][j] === this.grid[i + 1][j]) return false;
+        }
+    }
+    
+    return true;
+};
